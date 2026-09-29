@@ -1,0 +1,300 @@
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>人工管理アプリ</title>
+<style>
+body {
+  font-family: sans-serif;
+  max-width: 700px;
+  margin: 30px auto;
+  padding: 0 20px;
+  background: #f5f5f5;
+}
+
+button {
+  padding: 8px 14px;
+  margin: 4px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+body > button {
+  background: #333;
+  color: white;
+  border: none;
+}
+
+input, select {
+  padding: 8px;
+  margin: 4px;
+  border-radius: 6px;
+}
+
+#genbaList > div {
+  padding: 12px;
+  margin-top: 10px;
+  border: 1px solid #ccc;
+  font-size: 18px;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+#genbaList > div button:nth-of-type(1) {
+  margin-left: auto;
+}
+
+#genbaList > div button:last-of-type {
+  background: #fff;
+  border: 1px solid #999;
+}
+
+#totalDisplay,
+#costDisplay,
+#profitDisplay {
+  background: white;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+</style>
+  
+
+</head>
+
+<body>
+
+<h1>人工管理アプリ</h1>
+
+<button onclick="addGenba()">現場を追加する</button>
+<input id="genbaSearch" placeholder="現場名を検索" oninput="showGenbas()">
+
+<div id="genbaList">
+</div>
+
+<script>
+let genbas = JSON.parse(localStorage.getItem("genbas")) || [];
+function showGenbas(){
+let search = document.getElementById("genbaSearch").value;
+document.getElementById("genbaList").innerHTML = "";
+genbas.forEach(function(name, index){
+if (!name.includes(search)) return;
+let div = document.createElement("div");
+div.textContent = name;
+let editGenbaButton = document.createElement("button");
+editGenbaButton.textContent = "現場名編集";
+editGenbaButton.onclick = function(event) {
+event.stopPropagation();
+let newName = prompt("新しい現場名を入力してください", name);
+if (!newName || newName === name) return;
+if (genbas.includes(newName)) {
+  alert("同じ現場名が既にあります");
+  return;
+}
+genbas[index] = newName;
+localStorage.setItem("genbas", JSON.stringify(genbas));
+let oldRecords = localStorage.getItem("records_" + name);
+if (oldRecords) localStorage.setItem("records_"　+ newName, oldRecords);
+let oldTanka = localStorage.getItem("tanka_" + name);
+if (oldTanka) localStorage.setItem("tanka_" + newName,oldTanka);
+let oldUkeoi = localStorage.getItem("ukeoi_" + name);
+if (oldUkeoi) localStorage.setItem("ukeoi_" + newName, oldUkeoi);
+localStorage.removeItem("records_" + name);
+localStorage.removeItem("tanka_" + name);
+localStorage.removeItem("ukeoi_" + name);
+location.reload();
+};
+div.appendChild(editGenbaButton);
+let deleteButton = document.createElement("button");
+deleteButton.textContent = "削除";
+deleteButton.onclick = function(event) {
+event.stopPropagation();
+if (!confirm("この現場を削除しますか？")) return;
+genbas.splice(index, 1);
+localStorage.setItem("genbas", JSON.stringify(genbas));
+localStorage.removeItem("records_" + name);
+localStorage.removeItem("tanka_" + name);
+localStorage.removeItem("ukeoi_" + name);
+div.remove();
+};
+div.appendChild(deleteButton);
+div.onclick = function(){
+currentGenba = name;
+records =  JSON.parse(localStorage.getItem("records_" + currentGenba)) || [];
+let savedUkeoi = localStorage.getItem("ukeoi_" + currentGenba) || "";
+let savedTanka = localStorage.getItem("tanka_" + currentGenba) || "20000";
+totalNinku = 0;
+document.body.innerHTML = "<h1>" + name + "</h1>";
+document.body.innerHTML += "<button onclick='location.reload()'>現場一覧に戻る</button><br>";
+document.body.innerHTML += "請負金額:<input id='ukeoi' value='" + savedUkeoi + "'>円";
+document.body.innerHTML += "<br>人工単価:<input id='tanka' value='" + savedTanka + "'>円";
+document.body.innerHTML += "<h2>人工を追加</h2>";
+document.body.innerHTML += "日付:<input type='date'>";
+let workers = JSON.parse(localStorage.getItem("workers")) || ["加藤"];
+document.body.innerHTML += "<br>職人名:<select id='shokunin'></select>";
+document.body.innerHTML += "<button onclick='addWorker()'>職人を追加</button>";
+document.body.innerHTML += "<button onclick='deleteWorker()'>職人を削除</button>";
+workers.forEach(function(worker) {
+let option = document.createElement("option");
+option.textContent = worker;
+document.getElementById("shokunin").appendChild(option);
+});
+document.body.innerHTML += "<br>人工:<input id='ninku' type='number' step=0.125' value='1'>人工";
+document.body.innerHTML += "<br><button onclick='addNinku()'>人工を追加</button>";
+document.body.innerHTML += "<div id='recordList'></div>";
+document.body.innerHTML += "<h3 id='totalDisplay'>合計:0人工</h3>";
+document.body.innerHTML += "<h3 id='costDisplay'>人工金額:0円</h3>";
+document.body.innerHTML += "<h3 id='profitDisplay'>差額:0円</h3>";
+let today = new Date();
+today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+document.querySelector('input[type="date"]').value = today.toISOString().split("T")[0];
+showRecords();
+document.getElementById("ukeoi").onchange = function() {
+let ukeoi = document.getElementById("ukeoi").value;
+localStorage.setItem("ukeoi_" + currentGenba, ukeoi);
+let tanka = Number(document.getElementById("tanka").value);
+let cost = totalNinku * tanka;
+let profit = Number(ukeoi) - cost;
+document.getElementById("profitDisplay").textContent = "差額" + profit.toLocaleString() + "円";
+};
+document.getElementById("tanka").onchange = function() {
+let tanka = document.getElementById("tanka").value;
+localStorage.setItem("tanka_" + currentGenba, tanka);
+let cost = totalNinku * Number(tanka);
+let ukeoi = Number(document.getElementById("ukeoi").value);
+let profit = ukeoi - cost;
+document.getElementById("costDisplay").textContent = "人工金額:" + cost.toLocaleString() + "円";
+document.getElementById("profitDisplay").textContent = "差額" + profit.toLocaleString() + "円";
+};
+};
+document.getElementById("genbaList").appendChild(div);
+});
+}
+showGenbas();
+function addGenba() {
+let name = prompt("現場名を入力してください");
+if (!name) return;
+
+if (genbas.includes(name)) {
+  alert("同じ現場名が既にあります");
+  return;
+}
+
+genbas.unshift(name);
+localStorage.setItem("genbas", JSON.stringify(genbas));
+
+showGenbas();
+}
+let totalNinku = 0;
+let currentGenba = "";
+let records = [];
+function showRecords() {
+records.forEach(function(record, index){
+totalNinku += Number(record.ninku);
+let div = document.createElement("div")
+let button = document.createElement("button");
+let editButton = document.createElement("button");
+editButton.textContent = "編集";
+editButton.onclick = function() {
+let newNinku = prompt("人工を入力してください", record.ninku);
+if (newNinku === null) return;
+record.ninku = newNinku;
+localStorage.setItem("records_" + currentGenba, JSON.stringify(records));
+totalNinku = 0;
+document.getElementById("recordList").innerHTML = "";
+showRecords();
+};
+button.textContent = "削除";
+button.onclick = function() {
+records.splice(index, 1);
+localStorage.setItem("records_" + currentGenba, JSON.stringify(records));
+div.remove();
+totalNinku -= Number(record.ninku);
+document.getElementById("totalDisplay").textContent = "合計" + totalNinku + "人工";
+let tanka = Number(document.getElementById("tanka").value);
+let cost = totalNinku * tanka;
+document.getElementById("costDisplay").textContent = "人工金額" + cost.toLocaleString() + "円";
+let ukeoi = Number(document.getElementById("ukeoi").value);
+let profit = ukeoi - cost;
+document.getElementById("profitDisplay").textContent = "差額" + profit.toLocaleString() + "円";
+};
+div.textContent = record.date + " " + record.shokunin + record.ninku + "人工";
+div.appendChild(editButton);
+div.appendChild(button);
+document.getElementById("recordList").appendChild(div);
+});
+document.getElementById("totalDisplay").textContent = "合計" + totalNinku + "人工";
+let tanka = Number(document.getElementById("tanka").value);
+let cost = totalNinku * tanka;
+let ukeoi = Number(document.getElementById("ukeoi").value);
+let profit = ukeoi - cost;
+document.getElementById("profitDisplay").textContent =　"差額" + profit.toLocaleString() + "円";
+document.getElementById("costDisplay").textContent = "人工金額" + cost.toLocaleString() + "円";
+}
+function addWorker(){
+let worker = prompt("職人名を入力してください");
+if (!worker) return;
+let workers = JSON.parse(localStorage.getItem("workers")) || ["加藤"];
+workers.push(worker);
+localStorage.setItem("workers", JSON.stringify(workers));
+let option = document.createElement("option");
+option.textContent = worker;
+document.getElementById("shokunin").appendChild(option);
+}
+function deleteWorker() {
+let worker = document.getElementById("shokunin").value;
+if (!confirm(worker + "を削除しますか？")) return;
+let workers = JSON.parse(localStorage.getItem("wokers")) || ["加藤"];
+workers = workers.filter(function(name) {
+return name !== worker;
+});
+localStorage.setItem("workers", JSON.stringify(workers));
+document.getElementById("shokunin").remove(document.getElementById("shokunin").selectedIndex);
+}
+function addNinku() {
+let date = document.querySelector('input[type="date"]').value;
+let shokunin = document.getElementById("shokunin").value;
+let ninku = document.getElementById("ninku").value;
+records.push({ date: date, shokunin: shokunin, ninku: ninku });
+localStorage.setItem("records_" + currentGenba, JSON.stringify(records));
+totalNinku += Number(ninku);
+let tanka = Number(document.getElementById("tanka").value);
+let ukeoi = Number(document.getElementById("ukeoi").value);
+localStorage.setItem("ukeoi_" + currentGenba, ukeoi);
+let cost = totalNinku * tanka;
+let profit = ukeoi - cost;
+document.getElementById("profitDisplay").textContent = "差額:" + profit.toLocaleString() + "円";
+document.getElementById("costDisplay").textContent = "人工金額" + cost.toLocaleString() + "円";
+document.getElementById("totalDisplay").textContent = "合計:" + totalNinku + "人工";
+let record = document.createElement("div");
+let button = document.createElement("button");
+button.textContent = "削除";
+button.onclick = function() {
+let index = records.length - 1;
+records.splice(index, 1);
+localStorage.setItem("records_" + currentGenba, JSON.stringify(records));
+record.remove();
+totalNinku -= Number(ninku);
+document.getElementById("totalDisplay").textContent = "合計：" + totalNinku + "人工";
+let tanka = Number(document.getElementById("tanka").value);
+let cost = totalNinku * tanka;
+document.getElementById("costDisplay").textContent = "人工金額" + cost.toLocaleString() + "円";
+let ukeoi = Number(document.getElementById("ukeoi").value);
+let profit = ukeoi - cost;
+document.getElementById("profitDisplay").textContent = "差額" + profit.toLocaleString() + "円";
+};
+record.textContent = date + " " + shokunin + ":" + ninku + "人工";
+record.appendChild(button);
+document.getElementById("recordList").appendChild(record);
+}
+</script>
+</body>
+</html>
+
